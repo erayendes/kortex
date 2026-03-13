@@ -15,10 +15,11 @@ Kortex v2, Milowda/Antigravity AI Agent Framework'ünün markdown tabanlı simü
 ### Temel Prensipler
 
 - **Framework = Sistem:** ai-agent-framework'ün `.agent/` dizin yapısı, kuralları ve akışları Kortex'in iç mantığını oluşturur
-- **Persona = AI Agent:** 21 persona gerçek AI model çağrılarıyla çalışır
+- **Persona = AI Agent:** 20 AI persona + 1 insan (prime) = 21 rol. AI persona'lar gerçek model çağrılarıyla çalışır
 - **Prime = İnsan:** +prime her zaman insan kullanıcı, asla AI
-- **Türkçe UI / İngilizce API:** Kullanıcı arayüzü Türkçe, tüm API ve kod İngilizce
+- **Türkçe UI / İngilizce API:** Kullanıcı arayüzü Türkçe, tüm API ve kod İngilizce. Status enum değerleri İngilizce, UI'da Türkçe label mapping kullanılır
 - **Multi-Model:** Claude, OpenAI, Gemini aynı anda kullanılabilir
+- **3 Deneme Kuralı:** Herhangi bir AI çağrısı 3 başarısız denemeden sonra escalation zincirini tetikler (persona → manager → prime)
 
 ---
 
@@ -253,7 +254,7 @@ AI agent çalışma kayıtları (hem kickoff hem development).
 | pipelineStepId | text FK? | Kickoff fazında → pipelineSteps.id |
 | personaId | text FK | Çalışan persona |
 | modelId | text FK | Kullanılan model |
-| status | enum | running, paused, error, blocked |
+| status | enum | running, paused, error, blocked, completed |
 | logs | text | Canlı log stream |
 | tokenUsage | text (JSON) | {input, output, cost} |
 | startedAt | timestamp | |
@@ -261,16 +262,85 @@ AI agent çalışma kayıtları (hem kickoff hem development).
 
 ### 3.2 Mevcut Tablolardan Değişenler
 
+#### documentTypes (seed data)
+Doküman tip kayıt defteri — her framework dokümanının kim üretir, kim inceler, kim onaylar bilgisi.
+
+| Kolon | Tip | Açıklama |
+|-------|-----|----------|
+| id | text PK | "design-system", "kickoff-report" vs. |
+| category | enum | reference, report, memory |
+| title | text | "Design System" |
+| ownerPersonaId | text FK | Üreten persona |
+| reviewerPersonaId | text FK? | İnceleyen persona |
+| approverPersonaId | text FK? | Onaylayan persona (null = prime) |
+| template | text? | Markdown şablon içeriği |
+
+Seed data (framework'ten):
+
+| type | category | owner | reviewer | approver |
+|------|----------|-------|----------|----------|
+| product-roadmap | reference | prime | — | — |
+| legal-reports | report | compliance-expert | — | prime |
+| growth-strategy | reference | growth-expert | — | prime |
+| product-requirements | report | product-manager | — | prime |
+| content-strategy | reference | copywriter | — | prime |
+| tech-stack | reference | architect | — | — |
+| security-reports | report | security-engineer | architect | — |
+| dictionary | reference | architect | — | — |
+| file-system | reference | architect | — | — |
+| design-system | reference | designer | frontend-developer | prime |
+| db-schema | reference | db-admin | — | — |
+| api-reference | reference | docs-author | backend-developer | — |
+| tech-requirements | report | engineering-manager | — | — |
+| test-strategy | reference | qa-engineer | — | — |
+| kickoff-reports | report | operation-manager | — | prime |
+| active-context | memory | operation-manager | — | — |
+| handover | memory | (any persona) | — | — |
+| decisions | memory | (any persona) | — | — |
+| learned | memory | (any persona) | — | — |
+| snippets | memory | (any persona) | — | — |
+
+#### personaHierarchy (seed data / constant)
+Persona hiyerarşisi ve escalation zinciri. `personas` tablosunda `parentId` ve `tier` zaten var, ek olarak:
+
+| Kolon | Tip | Açıklama |
+|-------|-----|----------|
+| personaId | text FK | → personas.id |
+| managerId | text FK? | Doğrudan yöneticisi |
+| escalationChain | text (JSON) | ["engineering-manager", "operation-manager", "prime"] |
+| canDelegateToIds | text (JSON) | Görev verebileceği persona'lar |
+
+#### accessConfig
+Proje bazlı credential ve konfigürasyon yönetimi (framework'teki `references/access.md` karşılığı).
+
+| Kolon | Tip | Açıklama |
+|-------|-----|----------|
+| id | text PK | |
+| projectId | text FK | → projects.id |
+| serviceName | text | "Firebase", "AWS S3", "GitHub" vs. |
+| serviceCategory | enum | hosting, database, auth, storage, ci_cd, analytics, other |
+| configData | text | Non-secret JSON (URLs, project IDs) |
+| secretKeys | text | Encrypted JSON (API keys, tokens) |
+| isProvisioned | boolean | Prime tarafından sağlandı mı |
+| requiredByPersonaId | text FK? | Hangi persona talep etti |
+| notes | text? | Kurulum notları |
+| createdAt | timestamp | |
+| updatedAt | timestamp | |
+
 #### personas (global, değişmez)
-21 persona tüm projelerde aynı. Mevcut yapı korunur.
+20 AI persona + 1 insan (prime) tüm projelerde aynı. Mevcut yapı korunur.
 
 #### tasks (genişler)
 | Eklenen Kolon | Tip | Açıklama |
 |---------------|-----|----------|
 | projectId | text FK | → projects.id |
+| reporterPersonaId | text FK? | Görevi açan persona (transition'da reviewer olabilir) |
 | labels | text (JSON) | ["needs-qa", "needs-security"] |
 | testSteps | text (JSON) | Sıralı test adımları ["code_review", "qa", "security"] |
 | currentTestStep | text? | Şu an hangi test adımında |
+| dependencies | text (JSON) | {blocks: ["KTX-3"], blockedBy: ["KTX-2"], related: ["KTX-5"]} |
+| acceptanceCriteria | text? | Markdown — kabul kriterleri |
+| version | text? | "v0.1", "v1.0" — hangi release'e ait |
 
 Status enum genişler:
 `backlog | todo | in_progress | test_code_review | test_qa | test_security | review | done`
@@ -289,34 +359,65 @@ Status enum genişler:
 
 ### 4.1 Akış Yapısı
 
-Framework'teki `workflows/kickoff.md`'deki 6 faz DAG olarak modellenir:
+Framework'teki `workflows/kickoff.md` birebir DAG olarak modellenir. Her adımın girdi bağımlılıkları ve çıktı dokümanı bellidir:
 
 ```
-Faz 1: Oryantasyon
-  └─ +operation-manager: Proje analizi
+Faz 1: Süreç Başlangıcı
+  └─ +prime: product-roadmap.md girer, !start komutu verir
 
-Faz 2: Ürün Analizi (paralel)
+Faz 2: Ürün Analizi (paralel, Faz 1'e bağımlı)
+  ├─ +compliance-expert: KVKK/GDPR analizi
+  │    Girdi: product-roadmap.md
+  │    Çıktı: legal-reports.md → Approver: +prime
+  ├─ +growth-expert: Büyüme stratejisi
+  │    Girdi: product-roadmap.md
+  │    Çıktı: growth-strategy.md → Approver: +prime
   ├─ +product-manager: PRD
-  ├─ +compliance-expert: KVKK/GDPR
-  └─ +growth-expert: Büyüme stratejisi
+  │    Girdi: product-roadmap.md, legal-reports.md, growth-strategy.md
+  │    Çıktı: product-requirements.md → Approver: +prime
+  └─ +copywriter: İçerik stratejisi
+       Girdi: product-requirements.md, legal-reports.md, growth-strategy.md
+       Çıktı: content-strategy.md → Approver: +prime
 
-Faz 3: Teknik Mimari (paralel, Faz 2'ye bağımlı)
-  ├─ +architect: Tech stack + mimari kararlar
-  ├─ +designer: Design system
+Faz 3: Teknik Analiz (paralel, Faz 2'ye bağımlı)
+  ├─ +architect: Tech stack belirleme + MCP/araç tanımlama
+  │    Girdi: product-requirements.md
+  │    Çıktı: tech-stack.md
   ├─ +security-engineer: Güvenlik analizi
-  └─ +db-admin: DB schema tasarımı
+  │    Girdi: tech-stack.md
+  │    Çıktı: security-reports.md → Reviewer: +architect
+  ├─ +architect: Kodlama standartları + dosya yapısı
+  │    Girdi: security-reports.md, tech-stack.md
+  │    Çıktı: dictionary.md, file-system.md
+  ├─ +designer: Design system
+  │    Girdi: product-requirements.md, tech-stack.md, content-strategy.md
+  │    Çıktı: design-system.md → Reviewer: +frontend-developer, Approver: +prime
+  ├─ +db-admin: DB schema tasarımı
+  │    Girdi: product-requirements.md, security-reports.md, dictionary.md, tech-stack.md
+  │    Çıktı: db-schema.md
+  ├─ +docs-author: API referans
+  │    Girdi: product-requirements.md, db-schema.md, file-system.md, tech-stack.md
+  │    Çıktı: api-reference.md → Reviewer: +backend-developer
+  ├─ +engineering-manager: Teknik gereksinimler raporu
+  │    Girdi: (tüm teknik artifact'lar)
+  │    Çıktı: tech-requirements.md
+  └─ +qa-engineer: Test stratejisi
+       Girdi: product-requirements.md, tech-requirements.md
+       Çıktı: test-strategy.md
 
-Faz 4: İnceleme Zinciri
-  ├─ +frontend-developer: Design system incelemesi
-  ├─ +backend-developer: API reference incelemesi
-  └─ +code-reviewer: Genel kod standartları
-
-Faz 5: Konsolidasyon
+Faz 4: Konsolidasyon
   └─ +operation-manager: Kickoff raporu + prime soruları
+       Girdi: product-requirements.md, tech-requirements.md, test-strategy.md
+       Çıktı: kickoff-reports.md → Approver: +prime
 
-Faz 6: Prime Onay
-  └─ +prime: Inline review + soru yanıtları
+Faz 5: Prime Onay
+  └─ +prime: Inline review ile tüm dokümanları inceler, soruları yanıtlar
+
+Faz 6: Backlog Refinement (!refinement)
+  └─ +project-manager: Backlog oluşturma (Bkz. Bölüm 11)
 ```
+
+**Not:** Faz içindeki bazı adımlar sıralıdır (bağımlılık var), bazıları paraleldir. Pipeline engine `dependsOn` alanına bakarak hangi adımların paralel çalışabileceğini otomatik belirler.
 
 ### 4.2 DAG Görünümü (UI)
 
@@ -623,22 +724,57 @@ Her soru bir "karar noktası":
 
 ---
 
-## 11. Backlog'dan Board'a Geçiş
+## 11. Backlog Refinement & Board'a Geçiş
 
-### 11.1 Akış
+Framework'teki `workflows/backlog-refinements.md` akışının dijital karşılığı. Tetikleyici: Kickoff onayı sonrası otomatik veya `!refinement` komutu.
 
-1. Kickoff + prime onayı tamamlanır
-2. `+project-manager` backlog'u oluşturur (dokümanlardan görevleri çıkarır)
-3. **Düzenleme ekranı** açılır:
-   - Tüm görevler liste halinde
-   - Sürükle-bırak ile sıralama
-   - Her görevde: başlık, tip, öncelik, atanan persona, test adımları (labels)
-   - Görev ekleme/çıkarma
-   - Epic gruplama
-4. "Board'a Aktar" butonuna basılınca:
-   - Görevler `tasks` tablosuna yazılır
-   - Board görünümüne geçilir
-   - Proje statüsü `development`'a geçer
+### 11.1 Backlog Oluşturma (4 Adımlı Pipeline)
+
+**Adım 1 — İskelet (+project-manager):**
+- Kickoff dokümanlarından (product-requirements, tech-requirements, kickoff-reports) görevleri çıkarır
+- Epic'leri oluşturur
+- Story ve Task'ları tanımlar
+- Prime'a ait görevleri belirler (domain satın alma, hesap açma vs.) ve `assignee: prime` olarak işaretler
+
+**Adım 2 — Kalite & Etiketleme (+qa-engineer, +security-engineer):**
+- `+qa-engineer`: Her göreve acceptance criteria yazar, test gerektirenlere `needs-qa` etiketi ekler
+- `+security-engineer`: Güvenlik taraması gerekenlere `needs-security` etiketi ekler
+- Muğlak görevler `+project-manager`'a geri gönderilir
+
+**Adım 3 — Bağımlılık & Önceliklendirme (+project-manager):**
+- Blocks / Blocked By ilişkileri kurulur
+- Öncelikler atanır: Blocker (prime işleri) > High (MVP) > Medium > Low
+- Versiyon ataması: hangi epic hangi release'e ait (v0.1, v1.0 vs.)
+- Her görev bir epic'e bağlanır
+
+**Adım 4 — Konsolidasyon & Onay:**
+- `+project-manager` backlog dokümanını oluşturur (`product-backlog` tipinde document)
+- Approver: `+prime`
+
+### 11.2 Backlog Düzenleme Ekranı
+
+Prime onay verdikten sonra düzenleme ekranı açılır:
+
+- Tüm görevler tablo/liste halinde
+- Sürükle-bırak ile sıralama
+- Her görevde düzenlenebilir alanlar:
+  - Başlık, tip (Epic/Story/Task/Bug), öncelik
+  - Atanan persona, reporter persona
+  - Test adımları (labels: needs-qa, needs-security, needs-code-review)
+  - Acceptance criteria
+  - Bağımlılıklar (blocks / blocked by)
+  - Versiyon
+- Görev ekleme / çıkarma
+- Epic gruplama
+
+### 11.3 Board'a Aktarım
+
+"Board'a Aktar" butonuna basılınca:
+- Görevler `tasks` tablosuna yazılır
+- Bağımlılıklar `dependencies` JSON alanına kaydedilir
+- Test adımları `testSteps` JSON alanına kaydedilir
+- Board görünümüne geçilir
+- Proje statüsü `development`'a geçer
 
 ---
 
@@ -654,4 +790,251 @@ Lokal uygulama — tek kullanıcı (prime). Authentication yok. Sunucu modunda s
 
 ### 12.3 Git Sync Güvenliği
 
-`.agent/` dizinine yazılan dosyalarda asla credential bulunmaz. `references/access.md` git sync dışında tutulur.
+`.agent/` dizinine yazılan dosyalarda asla credential bulunmaz. `accessConfig` tablosu (access.md karşılığı) git sync dışında tutulur.
+
+### 12.4 Proje Credential Yönetimi
+
+Framework'teki `workflows/credential-setup.md` ve `references/access.md` karşılığı:
+
+1. Kickoff'ta `+architect` ve `+devops-engineer` gerekli servisleri belirler (Firebase, AWS, Vercel vs.)
+2. Her servis `accessConfig` tablosuna yazılır: servis adı, kategori, gerekli key'ler
+3. Prime'a "Bekleyen Credentials" ekranı gösterilir
+4. Prime key'leri girer → encrypted olarak saklanır
+5. `isProvisioned: true` olunca bağımlı görevler devam edebilir
+
+---
+
+## 13. Deployment Cycle
+
+Framework'teki `workflows/deployment-cycle.md` karşılığı. Tetikleyici: `!deploy` komutu veya UI'da "Deploy" butonu.
+
+### 13.1 Pre-Deployment Checklist
+
+`+devops-engineer` otomatik kontrol:
+- [ ] Tüm testler geçti mi (test pipeline)
+- [ ] Code review ve security onayları alınmış mı
+- [ ] DB migration'lar hazır mı
+- [ ] .env değişkenleri doğru mu (accessConfig'ten)
+- [ ] Rollback planı var mı
+
+### 13.2 Staging Deploy
+
+- `development` branch'ine merge → otomatik staging deploy
+- `+qa-engineer` smoke test + E2E çalıştırır
+- Sonuçlar `agentExecutions` + `activityLog`'a yazılır
+
+### 13.3 Production Deploy
+
+- Sadece `main` branch + tag ile tetiklenir
+- **+prime onayı zorunlu**
+- Post-deploy: smoke test (+qa-engineer), monitoring (+devops-engineer), SEO (+growth-expert)
+- `+delivery-manager` release notes yazar
+- `+devops-engineer` delivery report yazar
+
+### 13.4 Rollback
+
+- Hata oranı eşiği geçerse otomatik veya `!rollback` ile manuel
+- Git revert (asla reset)
+- `+engineering-manager` ve `+prime` bilgilendirilir
+- Root cause → `memory/learned` dokümanına kaydedilir
+
+---
+
+## 14. Hata Yönetimi & Escalation
+
+Framework'teki `rules/emergency.md` ve `rules/behavior.md` §3 (loop protection) karşılığı.
+
+### 14.1 AI Çağrı Hataları
+
+| Deneme | Aksiyon |
+|--------|---------|
+| 1. başarısız | Otomatik retry (exponential backoff) |
+| 2. başarısız | Farklı model/provider dene (Cipher fallback) |
+| 3. başarısız | Escalation: pipeline adımı `failed` statüsüne geçer |
+
+Fail sonrası:
+- Pipeline'da: DAG node kırmızıya döner, prime'a bildirim
+- Board'da: Kart `Hata` statüsüne geçer, persona + hata mesajı görünür
+
+### 14.2 Escalation Zinciri
+
+```
+Persona (hata) → Manager (bilgilendir) → Prime (karar ver)
+```
+
+Örnek: `+backend-developer` auth sistemi yazamadı →
+1. `+engineering-manager`'a escalate
+2. `+engineering-manager` görevi yeniden atar veya modeli değiştirir
+3. 3 manager denemesi de başarısız → `+prime`'a yükseltilir
+
+### 14.3 Agent Timeout
+
+- Kickoff adımları: 5 dakika timeout (doküman üretimi)
+- Development görevleri: 30 dakika timeout (kod yazımı)
+- Timeout → `agentExecutions.status = error`, karta hata bildirilir
+
+### 14.4 UI'da Hata Gösterimi
+
+- **DAG'da:** Node kırmızı border + hata ikonu, tıklayınca hata detayı + retry butonu
+- **Board'da:** Kart üzerinde `⚠ Hata` badge, tıklayınca log + hata mesajı + retry/reassign butonları
+- **Sidebar:** Kırmızı bildirim badge'i — kaç hata aktif
+
+---
+
+## 15. Komut-UI Eşlemesi
+
+Framework komutlarının UI karşılıkları:
+
+| Komut | UI Aksiyonu | Konum |
+|-------|-------------|-------|
+| `!start` | "Analiz Başlat" butonu | Roadmap giriş ekranı |
+| `!refinement` | Otomatik (kickoff sonrası) veya "Backlog Refinement" butonu | Kickoff tamamlandı ekranı |
+| `!start-dev` | "Board'a Aktar" butonu | Backlog düzenleme ekranı |
+| `!deploy` | "Deploy" butonu | Board header veya sidebar |
+| `!approve` | "Onayla" butonu | Doküman review, görev review |
+| `!reject` | "Revize" butonu | Doküman review, görev review |
+| `!rollback` | "Rollback" butonu | Deploy ekranı |
+| `!export-backlog` | Gelecek sürüm — GitHub Projects entegrasyonu |
+| `!sync-backlog` | Gelecek sürüm — GitHub Projects entegrasyonu |
+| `!sync-skills` | Gelecek sürüm — harici skill repo entegrasyonu |
+
+---
+
+## 16. SSE Event Tipleri
+
+Real-time güncellemeler için SSE event formatı:
+
+```typescript
+interface SSEEvent {
+  type: SSEEventType;
+  projectId: string;
+  payload: Record<string, unknown>;
+  timestamp: number;
+}
+
+type SSEEventType =
+  // Pipeline events
+  | "pipeline:step_started"
+  | "pipeline:step_completed"
+  | "pipeline:step_failed"
+  | "pipeline:step_awaiting_review"
+  // Board events
+  | "task:created"
+  | "task:moved"
+  | "task:assigned"
+  | "task:updated"
+  // Agent events
+  | "agent:started"
+  | "agent:log"        // Canlı log satırı
+  | "agent:progress"   // Özet mesaj (3 dosya yazıldı vs.)
+  | "agent:completed"
+  | "agent:error"
+  // Document events
+  | "document:created"
+  | "document:updated"
+  | "document:approved"
+  // Review events
+  | "review:submitted"
+  | "review:approved"
+  | "review:revision_requested"
+  // System events
+  | "notification:error"
+  | "notification:info";
+```
+
+SSE endpoint: `GET /api/v1/projects/:projectId/stream`
+Heartbeat: 30 saniyede bir `:keepalive` mesajı.
+
+---
+
+## 17. Activity Log
+
+### 17.1 Veri Modeli
+
+| Kolon | Tip | Açıklama |
+|-------|-----|----------|
+| id | text PK | |
+| projectId | text FK | → projects.id |
+| eventType | text | SSE event type ile aynı |
+| actorPersonaId | text FK? | Aksiyonu yapan persona |
+| targetType | enum | task, document, pipeline_step, epic, agent_execution |
+| targetId | text | İlgili kaydın ID'si |
+| description | text | İnsan okunur açıklama (Türkçe) |
+| metadata | text (JSON) | Ek bilgi (eski/yeni statü vs.) |
+| createdAt | timestamp | |
+
+### 17.2 Kaydedilen Olaylar
+
+- Persona aksiyonları: görev oluşturma, statü değişikliği, atama
+- Doküman olayları: oluşturma, review, onay, revize
+- Pipeline olayları: adım başlama, tamamlanma, hata
+- Agent olayları: başlama, tamamlanma, hata
+- Prime kararları: onay, red, override
+
+### 17.3 UI
+
+Sidebar'da "Aktivite" sayfası:
+- Kronolojik event listesi (en yeni üstte)
+- Event tipi ikonu + renk badge'i
+- Filtreleme: event tipi, persona, tarih aralığı
+- SSE ile canlı güncelleme — yeni event'ler üstten eklenir
+
+---
+
+## 18. CLI Agent Protokolü
+
+### 18.1 Authentication
+
+CLI agent Kortex API'ye bağlanırken:
+- `~/.kortexrc` dosyasından `apiUrl` ve `persona` okur
+- Her request'te `X-Persona-Id` ve `X-Project-Id` header'ları gönderir
+- Lokal modda auth yok, sunucu modunda API token gerekir (gelecek)
+
+### 18.2 Agent Lifecycle
+
+```
+1. Agent başlar → POST /api/v1/agent-executions
+   { taskId, personaId, modelId }
+   → status: running
+
+2. Agent çalışırken → PATCH /api/v1/agent-executions/:id/log
+   { log: "Branch açılıyor..." }
+   → SSE broadcast: agent:log
+
+3. Agent ilerleme bildirimi → PATCH /api/v1/agent-executions/:id/progress
+   { summary: "3 dosya yazıldı" }
+   → SSE broadcast: agent:progress
+
+4. Agent bitirir → PATCH /api/v1/agent-executions/:id/complete
+   { status: completed, tokenUsage: {...} }
+   → Otomatik task transition tetiklenir
+
+5. Agent hata → PATCH /api/v1/agent-executions/:id/error
+   { error: "Test failed: 3/12", status: error }
+   → SSE broadcast: agent:error
+```
+
+### 18.3 CLI Komutları
+
+```bash
+kortex agent run --task KTX-42          # Görevi al ve çalıştır
+kortex agent status --task KTX-42       # Agent durumu
+kortex agent logs --task KTX-42         # Canlı loglar
+kortex task list --status in_progress   # Aktif görevler
+kortex task move KTX-42 test            # Statü değişikliği
+kortex handoff create --from backend-developer --to qa-engineer --task KTX-42
+kortex memory create --category decisions --content "JWT yerine session kullanıldı"
+```
+
+---
+
+## 19. Gelecek Sürüm (Deferred)
+
+Şu an kapsam dışı, ileride eklenecek özellikler:
+
+- **GitHub Projects entegrasyonu:** `!export-backlog`, `!sync-backlog` komutları
+- **Skill sync:** `!sync-skills` ile harici repo'lardan skill çekme
+- **Sunucu modu:** Multi-user auth, session management
+- **CI/CD entegrasyonu:** GitHub Actions trigger'ları
+- **Deployment UI:** Staging/production deploy ekranı (Bölüm 13 temel yapı, detaylı UI gelecek)
+- **i18n altyapısı:** String catalog, çoklu dil desteği
