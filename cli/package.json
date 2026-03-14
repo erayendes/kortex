@@ -1,0 +1,23 @@
+{
+  "name": "kortex-cli",
+  "version": "0.1.0",
+  "description": "Kortex AI Agent Workflow CLI",
+  "type": "module",
+  "bin": {
+    "kortex": "./bin/kortex.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
