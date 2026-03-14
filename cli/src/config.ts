@@ -7,6 +7,7 @@ const CONFIG_PATH = join(homedir(), ".kortexrc");
 interface KortexConfig {
   apiUrl: string;
   persona: string;
+  projectId?: string;
 }
 
 const DEFAULT_CONFIG: KortexConfig = {

@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { api } from "../client.js";
+import { getConfig } from "../config.js";
 
 const STATUS_COLORS: Record<string, (s: string) => string> = {
   todo: chalk.gray,
@@ -14,9 +15,11 @@ export function registerBoardCommand(program: Command) {
   program
     .command("board")
     .description("Kanban panosu özeti")
-    .action(async () => {
+    .option("-p, --project <projectId>", "Proje ID")
+    .action(async (opts) => {
       try {
-        const data = await api("/board");
+        const projectId = opts.project || getConfig().projectId || "";
+        const data = await api(`/board?projectId=${projectId}`);
 
         console.log();
         console.log(chalk.bold("  Kortex Kanban Panosu"));
@@ -24,8 +27,10 @@ export function registerBoardCommand(program: Command) {
         console.log();
 
         for (const col of data.columns) {
-          const colorFn = STATUS_COLORS[col.status] || chalk.white;
-          const header = colorFn(`  ● ${col.label.toUpperCase()}`);
+          const status = col.id || col.status || "unknown";
+          const label = col.label || status;
+          const colorFn = STATUS_COLORS[status] || chalk.white;
+          const header = colorFn(`  ● ${label.toUpperCase()}`);
           const count = chalk.gray(`(${col.tasks.length})`);
           console.log(`${header} ${count}`);
 
@@ -34,9 +39,9 @@ export function registerBoardCommand(program: Command) {
           } else {
             for (const task of col.tasks) {
               const id = chalk.cyan(task.id.padEnd(12));
-              const title = task.title.substring(0, 35).padEnd(35);
-              const assignee = task.assignee
-                ? chalk.blue(task.assignee.displayName)
+              const title = (task.title || "").substring(0, 35).padEnd(35);
+              const assignee = (task.assigneePersonaId || task.assignee?.displayName)
+                ? chalk.blue(task.assigneePersonaId || task.assignee?.displayName)
                 : chalk.gray("-");
               console.log(`    ${id} ${title}  ${assignee}`);
             }

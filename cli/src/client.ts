@@ -26,5 +26,10 @@ export async function api<T = any>(
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 
-  return res.json();
+  const json = await res.json();
+  // API returns { data: ... } wrapper — unwrap for CLI convenience
+  if (json && typeof json === "object" && "data" in json && !("id" in json)) {
+    return json.data;
+  }
+  return json;
 }

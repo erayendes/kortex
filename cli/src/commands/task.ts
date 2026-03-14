@@ -57,7 +57,7 @@ export function registerTaskCommands(program: Command) {
             t.title.substring(0, 40),
             statusColor(t.status),
             priorityColor(t.priority),
-            t.assigneeId ? chalk.blue(`+${t.assigneeId}`) : chalk.gray("-"),
+            (t.assigneePersonaId || t.assigneeId) ? chalk.blue(`+${t.assigneePersonaId || t.assigneeId}`) : chalk.gray("-"),
           ]);
         }
 
@@ -79,8 +79,8 @@ export function registerTaskCommands(program: Command) {
         console.log(`  Durum:    ${(STATUS_COLORS[t.status] || chalk.white)(t.status)}`);
         console.log(`  Öncelik:  ${(PRIORITY_COLORS[t.priority] || chalk.white)(t.priority)}`);
         console.log(`  Tür:      ${t.type}`);
-        console.log(`  Atanan:   ${t.assigneeId ? chalk.blue(`+${t.assigneeId}`) : chalk.gray("-")}`);
-        console.log(`  Raporlayan: ${t.reporterId ? chalk.magenta(`+${t.reporterId}`) : chalk.gray("-")}`);
+        console.log(`  Atanan:   ${(t.assigneePersonaId || t.assigneeId) ? chalk.blue(`+${t.assigneePersonaId || t.assigneeId}`) : chalk.gray("-")}`);
+        console.log(`  Raporlayan: ${(t.reporterPersonaId || t.reporterId) ? chalk.magenta(`+${t.reporterPersonaId || t.reporterId}`) : chalk.gray("-")}`);
         if (t.epicId) console.log(`  Epic:     ${chalk.cyan(t.epicId)}`);
         if (t.branchName) console.log(`  Branch:   ${chalk.gray(t.branchName)}`);
         if (t.description) {
@@ -106,13 +106,14 @@ export function registerTaskCommands(program: Command) {
     .action(async (opts) => {
       try {
         const task = await api("/tasks", "POST", {
+          projectId: "KTX-JGaqMwUd",
           title: opts.title,
           type: opts.type,
           priority: opts.priority,
           epicId: opts.epic,
-          assigneeId: opts.assign,
+          assigneePersonaId: opts.assign,
           description: opts.desc,
-          reporterId: getPersona(),
+          reporterPersonaId: getPersona(),
         });
         console.log(chalk.green(`✓ Görev oluşturuldu: ${chalk.cyan(task.id)} — ${task.title}`));
       } catch (err: any) {
@@ -126,7 +127,7 @@ export function registerTaskCommands(program: Command) {
     .action(async (id, status) => {
       try {
         const result = await api(`/tasks/${id}/transition`, "POST", {
-          targetStatus: status,
+          toStatus: status,
           personaId: getPersona(),
         });
         console.log(
@@ -155,7 +156,7 @@ export function registerTaskCommands(program: Command) {
     .action(async (id, content) => {
       try {
         await api(`/tasks/${id}/comments`, "POST", {
-          personaId: getPersona(),
+          authorPersonaId: getPersona(),
           content,
         });
         console.log(chalk.green(`✓ Yorum eklendi: ${chalk.cyan(id)}`));
