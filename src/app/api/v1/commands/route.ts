@@ -43,37 +43,42 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const parsed = createSchema.parse(body);
+  try {
+    const body = await req.json();
+    const parsed = createSchema.parse(body);
 
-  const id = generateId();
-  const now = new Date().toISOString();
+    const id = generateId();
+    const now = new Date().toISOString();
 
-  db.insert(commands)
-    .values({
-      id,
-      projectId: parsed.projectId,
-      command: parsed.command,
-      args: parsed.args ?? null,
-      triggeredByPersonaId: parsed.triggeredByPersonaId,
-      status: "running",
-      createdAt: now,
-      updatedAt: now,
-    })
-    .run();
+    db.insert(commands)
+      .values({
+        id,
+        projectId: parsed.projectId,
+        command: parsed.command,
+        args: parsed.args ?? null,
+        triggeredByPersonaId: parsed.triggeredByPersonaId,
+        status: "running",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
 
-  // Execute command asynchronously
-  const result = await executeCommand(parsed.projectId, parsed.command, parsed.args);
+    const result = await executeCommand(parsed.projectId, parsed.command, parsed.args);
 
-  db.update(commands)
-    .set({
-      status: result.success ? "completed" : "failed",
-      result: JSON.stringify(result),
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(commands.id, id))
-    .run();
+    db.update(commands)
+      .set({
+        status: result.success ? "completed" : "failed",
+        result: JSON.stringify(result),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(commands.id, id))
+      .run();
 
-  const cmd = db.select().from(commands).where(eq(commands.id, id)).get();
-  return NextResponse.json(cmd, { status: 201 });
+    const cmd = db.select().from(commands).where(eq(commands.id, id)).get();
+    return NextResponse.json({ data: cmd }, { status: 201 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[commands POST]", err);
+    return NextResponse.json({ error: { message } }, { status: 500 });
+  }
 }

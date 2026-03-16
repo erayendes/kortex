@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { generateBacklogTasks } from "@/app/api/v1/backlog/generate/route";
+import { generateBacklogTasks } from "@/lib/engine/backlog-generator";
 
 export interface CommandResult {
   success: boolean;
