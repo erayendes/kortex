@@ -35,6 +35,7 @@ export async function PATCH(
       updatedAt: new Date().toISOString(),
     };
     if (parsed.labels) updates.labels = JSON.stringify(parsed.labels);
+    if (parsed.dependencies) updates.dependencies = JSON.stringify(parsed.dependencies);
 
     db.update(tasks).set(updates).where(eq(tasks.id, id)).run();
 

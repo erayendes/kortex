@@ -12,6 +12,8 @@ interface Task {
   assigneePersonaId: string | null;
   epicId: string | null;
   labels: string;
+  dependencies: string;
+  taskNumber: number;
   orderIndex: number;
   projectId: string;
   testSteps: string;

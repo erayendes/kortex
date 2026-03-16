@@ -4,13 +4,9 @@ import { z } from "zod";
 
 export const createProjectSchema = z.object({
   name: z.string().min(1).max(100),
-  id: z
-    .string()
-    .min(1)
-    .max(50)
-    .regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, hyphens"),
+  id: z.string().min(1).max(50),
   platform: z.enum(["web", "mobile", "api", "fullstack"]),
-  repoUrl: z.string().url().optional(),
+  repoUrl: z.string().url().optional().or(z.literal("")),
   defaultBranch: z.string().default("main"),
   gitSyncEnabled: z.boolean().default(false),
   defaultProviderId: z.string().optional(),
@@ -37,7 +33,16 @@ export const createTaskSchema = z.object({
   version: z.string().optional(),
 });
 
-export const updateTaskSchema = createTaskSchema.partial().omit({ projectId: true });
+const dependenciesSchema = z.object({
+  blocks: z.array(z.string()).default([]),
+  blockedBy: z.array(z.string()).default([]),
+  related: z.array(z.string()).default([]),
+}).optional();
+
+export const updateTaskSchema = createTaskSchema
+  .partial()
+  .omit({ projectId: true })
+  .extend({ dependencies: dependenciesSchema });
 
 export const transitionTaskSchema = z.object({
   toStatus: z.enum([

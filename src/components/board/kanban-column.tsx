@@ -10,15 +10,20 @@ interface Task {
   id: string;
   title: string;
   type: string;
+  status: TaskStatus;
   priority: string;
   assigneePersonaId: string | null;
+  epicId: string | null;
   labels: string;
+  dependencies: string;
+  taskNumber: number;
   orderIndex: number;
 }
 
 interface KanbanColumnProps {
   status: TaskStatus;
   tasks: Task[];
+  epicBorderMap: Record<string, string>;
 }
 
 const statusColors: Partial<Record<TaskStatus, string>> = {
@@ -32,11 +37,11 @@ const statusColors: Partial<Record<TaskStatus, string>> = {
   done: "bg-[var(--success)]",
 };
 
-export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
+export function KanbanColumn({ status, tasks, epicBorderMap }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
   return (
-    <div className="flex h-full w-72 shrink-0 flex-col">
+    <div className="flex h-full w-60 shrink-0 flex-col">
       {/* Column Header */}
       <div className="mb-2 flex items-center gap-2 px-1">
         <div className={`h-2 w-2 rounded-full ${statusColors[status] ?? "bg-[var(--text-muted)]"}`} />
@@ -61,7 +66,13 @@ export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
             <span className="text-xs text-[var(--text-muted)]">Boş</span>
           </div>
         ) : (
-          tasks.map((task) => <TaskCard key={task.id} task={task} />)
+          tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              epicBorderClass={task.epicId ? epicBorderMap[task.epicId] : undefined}
+            />
+          ))
         )}
       </div>
     </div>

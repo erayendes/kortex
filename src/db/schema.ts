@@ -147,6 +147,7 @@ export const tasks = sqliteTable("tasks", {
   acceptanceCriteria: text("acceptance_criteria"),
   version: text("version"),
   branch: text("branch"),
+  taskNumber: integer("task_number").notNull().default(0),
   orderIndex: integer("order_index").notNull().default(0),
   ...timestamps,
 });

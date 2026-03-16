@@ -3,7 +3,7 @@ import { tasks } from "@/db/schema";
 import { errorResponse } from "@/lib/errors";
 import { createTaskSchema } from "@/lib/validators";
 import { generateId } from "@/lib/id";
-import { eq, asc, and } from "drizzle-orm";
+import { eq, asc, and, max } from "drizzle-orm";
 
 export async function GET(request: Request) {
   try {
@@ -37,10 +37,19 @@ export async function POST(request: Request) {
     const testSteps = deriveTestSteps(parsed.labels);
     const now = new Date().toISOString();
 
+    // Auto-assign sequential task number per project
+    const maxResult = db
+      .select({ maxNum: max(tasks.taskNumber) })
+      .from(tasks)
+      .where(eq(tasks.projectId, parsed.projectId))
+      .get();
+    const taskNumber = (maxResult?.maxNum ?? 0) + 1;
+
     db.insert(tasks)
       .values({
         id,
         ...parsed,
+        taskNumber,
         labels: JSON.stringify(parsed.labels),
         testSteps: JSON.stringify(testSteps),
         dependencies: JSON.stringify({ blocks: [], blockedBy: [], related: [] }),
