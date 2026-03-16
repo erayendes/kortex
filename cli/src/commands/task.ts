@@ -2,7 +2,11 @@ import { Command } from "commander";
 import chalk from "chalk";
 import Table from "cli-table3";
 import { api } from "../client.js";
-import { getPersona } from "../config.js";
+import { getPersona, getConfig } from "../config.js";
+
+function getProjectId(): string | undefined {
+  return getConfig().projectId;
+}
 
 const STATUS_COLORS: Record<string, (s: string) => string> = {
   todo: chalk.gray,
@@ -105,8 +109,13 @@ export function registerTaskCommands(program: Command) {
     .option("-d, --desc <description>", "Açıklama")
     .action(async (opts) => {
       try {
+        const projectId = getProjectId();
+        if (!projectId) {
+          console.error(chalk.red("Proje ID'si ayarlanmamış. kortex config set-project <id> komutunu kullanın"));
+          process.exit(1);
+        }
         const task = await api("/tasks", "POST", {
-          projectId: "KTX-JGaqMwUd",
+          projectId,
           title: opts.title,
           type: opts.type,
           priority: opts.priority,

@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { generateBacklogTasks } from "@/app/api/v1/backlog/generate/route";
 
 export interface CommandResult {
   success: boolean;
@@ -58,11 +59,22 @@ async function handleRefinement(projectId: string): Promise<CommandResult> {
     .where(eq(projects.id, projectId))
     .run();
 
-  return {
-    success: true,
-    message: "Backlog refinement başlatıldı",
-    action: "backlog:refine",
-  };
+  try {
+    const { tasksCreated } = await generateBacklogTasks(projectId);
+    return {
+      success: true,
+      message: `Backlog refinement başlatıldı. ${tasksCreated} görev oluşturuldu.`,
+      action: "backlog:refine",
+      data: { tasksCreated },
+    };
+  } catch (err) {
+    console.error("[command-executor] Backlog generation failed:", err);
+    return {
+      success: true,
+      message: "Backlog refinement başlatıldı (görev oluşturma başarısız).",
+      action: "backlog:refine",
+    };
+  }
 }
 
 async function handleStartDev(projectId: string): Promise<CommandResult> {

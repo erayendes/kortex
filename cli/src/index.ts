@@ -38,6 +38,14 @@ config
   });
 
 config
+  .command("set-project <id>")
+  .description("Varsayılan proje ID'sini ayarla")
+  .action((id) => {
+    setConfig("projectId", id);
+    console.log(chalk.green(`✓ Proje ID: ${chalk.cyan(id)}`));
+  });
+
+config
   .command("show")
   .description("Mevcut konfigürasyonu göster")
   .action(() => {
@@ -47,6 +55,7 @@ config
     console.log(chalk.gray("  " + "─".repeat(30)));
     console.log(`  API URL:  ${chalk.cyan(cfg.apiUrl)}`);
     console.log(`  Persona:  ${chalk.blue(`+${cfg.persona}`)}`);
+    console.log(`  Proje:    ${cfg.projectId ? chalk.cyan(cfg.projectId) : chalk.gray("(ayarlanmamış)")}`);
     console.log();
   });
 
