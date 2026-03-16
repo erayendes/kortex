@@ -90,28 +90,29 @@ export async function generateBacklogTasks(projectId: string): Promise<{
       "You are a technical project manager. Generate a structured list of development tasks for the given project. Return ONLY valid JSON, no markdown, no explanation.";
     const userPrompt =
       `Project: ${project.name}\n\nProject documents:\n${documentSummaries}\n\n` +
-      `Generate 15-25 development tasks as a JSON array. Each task must have: ` +
-      `title (string), description (string), type ('task'|'story'|'bug'), ` +
-      `priority ('critical'|'high'|'medium'|'low'), acceptanceCriteria (string). ` +
-      `Return ONLY the JSON array.`;
+      `Generate 15-20 development tasks as a JSON array. Keep each field concise (max 80 chars). ` +
+      `Each task: title (string), description (string, 1 sentence), type ('task'|'story'|'bug'), ` +
+      `priority ('critical'|'high'|'medium'|'low'), acceptanceCriteria (string, 1 sentence). ` +
+      `Return ONLY the JSON array, no markdown.`;
 
     try {
       const modelMap: Record<string, string> = {
         claude: "claude-opus-4-5",
         openai: "gpt-4o-mini",
-        gemini: "gemini-2.0-flash",
+        gemini: "gemini-2.5-flash",
       };
       const model = modelMap[provider.id] ?? "claude-opus-4-5";
       const result = await provider.generateText(userPrompt, {
         model,
-        maxTokens: 4096,
-        temperature: 0.5,
+        maxTokens: 8192,
+        temperature: 0.3,
         systemPrompt,
       });
       rawTasks = parseAIResponse(result.text);
       usedAI = true;
     } catch (aiError) {
-      console.error("[backlog-generator] AI generation failed, using fallback:", aiError);
+      const errMsg = aiError instanceof Error ? aiError.message : String(aiError);
+      console.error("[backlog-generator] AI generation failed:", errMsg.slice(0, 300));
     }
   }
 

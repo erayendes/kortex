@@ -107,7 +107,7 @@ export function seed() {
   const providerData = [
     { id: "claude", name: "Claude (Anthropic)", authType: "api_key", isConnected: false },
     { id: "openai", name: "OpenAI", authType: "api_key", isConnected: false },
-    { id: "gemini", name: "Gemini (Google)", authType: "oauth", isConnected: false },
+    { id: "gemini", name: "Gemini (Google)", authType: "api_key", isConnected: false },
   ];
 
   for (const p of providerData) {
