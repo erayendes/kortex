@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm run db:migrate && npm run build"
+buildCommand = "DB_PATH=./data/kortex.db npm run db:migrate && npm run build"
 
 [deploy]
 startCommand = "npm run db:migrate && npm run seed && npm start"
