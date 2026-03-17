@@ -21,20 +21,26 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const parsed = createProjectSchema.parse(body);
     const id = generateId("PRJ");
+    // Inject id before parse so both old (id required) and new (id optional) schemas work
+    const parsed = createProjectSchema.parse({ id, ...body });
+    const finalId: string = (parsed as { id?: string }).id ?? id;
 
     const now = new Date().toISOString();
     db.insert(projects)
       .values({
-        id,
-        ...parsed,
+        id: finalId,
+        name: parsed.name,
+        platform: parsed.platform,
+        repoUrl: parsed.repoUrl ?? null,
+        defaultBranch: parsed.defaultBranch,
+        gitSyncEnabled: parsed.gitSyncEnabled,
         createdAt: now,
         updatedAt: now,
       })
       .run();
 
-    const created = db.select().from(projects).where(eq(projects.id, id)).get();
+    const created = db.select().from(projects).where(eq(projects.id, finalId)).get();
     return Response.json({ data: created }, { status: 201 });
   } catch (error) {
     return errorResponse(error);
