@@ -1,4 +1,5 @@
 import { db } from "./index";
+import { sql } from "drizzle-orm";
 import {
   personas,
   personaHierarchy,
@@ -8,6 +9,15 @@ import {
 } from "./schema";
 
 export function seed() {
+  // Idempotency guard — skip if already seeded
+  const { count } = db
+    .select({ count: sql<number>`count(*)` })
+    .from(personas)
+    .get()!;
+  if (count > 0) {
+    console.log("✓ DB already seeded, skipping.");
+    return;
+  }
   console.log("🌱 Seeding database...");
 
   // ── Personas (21 roles from framework) ───────────────

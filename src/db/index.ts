@@ -4,7 +4,7 @@ import * as schema from "./schema";
 import path from "path";
 import fs from "fs";
 
-const DB_PATH = path.join(process.cwd(), "data", "kortex.db");
+const DB_PATH = process.env.DB_PATH ?? path.join(process.cwd(), "data", "kortex.db");
 
 // Ensure data directory exists
 const dataDir = path.dirname(DB_PATH);
