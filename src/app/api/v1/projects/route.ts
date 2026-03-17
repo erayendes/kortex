@@ -1,9 +1,18 @@
 import { db } from "@/db";
-import { generateId } from "@/lib/id";
 import { projects } from "@/db/schema";
 import { errorResponse } from "@/lib/errors";
-import { createProjectSchema } from "@/lib/validators";
+import { generateId } from "@/lib/id";
 import { desc, eq } from "drizzle-orm";
+import { z } from "zod";
+
+// Inline schema — no import from validators to avoid stale cache issues
+const newProjectSchema = z.object({
+  name: z.string().min(1).max(100),
+  platform: z.enum(["web", "mobile", "api", "fullstack"]),
+  repoUrl: z.string().url().optional().or(z.literal("")).optional(),
+  defaultBranch: z.string().default("main"),
+  gitSyncEnabled: z.boolean().default(false),
+});
 
 export async function GET() {
   try {
@@ -21,15 +30,13 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const parsed = newProjectSchema.parse(body);
     const id = generateId("PRJ");
-    // Inject id before parse so both old (id required) and new (id optional) schemas work
-    const parsed = createProjectSchema.parse({ id, ...body });
-    const finalId: string = (parsed as { id?: string }).id ?? id;
-
     const now = new Date().toISOString();
+
     db.insert(projects)
       .values({
-        id: finalId,
+        id,
         name: parsed.name,
         platform: parsed.platform,
         repoUrl: parsed.repoUrl ?? null,
@@ -40,7 +47,7 @@ export async function POST(request: Request) {
       })
       .run();
 
-    const created = db.select().from(projects).where(eq(projects.id, finalId)).get();
+    const created = db.select().from(projects).where(eq(projects.id, id)).get();
     return Response.json({ data: created }, { status: 201 });
   } catch (error) {
     return errorResponse(error);
