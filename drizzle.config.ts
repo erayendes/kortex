@@ -5,6 +5,6 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "sqlite",
   dbCredentials: {
-    url: "./data/kortex.db",
+    url: process.env.DB_PATH ?? "./data/kortex.db",
   },
 });
