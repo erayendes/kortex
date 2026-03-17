@@ -1,5 +1,2 @@
-[variables]
-NIXPACKS_NODE_VERSION = "20"
-
 [phases.setup]
-nixPkgs = ["python3", "pkg-config"]
+nixPkgs = ["nodejs_20", "python3", "pkg-config"]
