@@ -4,7 +4,6 @@ import { z } from "zod";
 
 export const createProjectSchema = z.object({
   name: z.string().min(1).max(100),
-  id: z.string().min(1).max(50),
   platform: z.enum(["web", "mobile", "api", "fullstack"]),
   repoUrl: z.string().url().optional().or(z.literal("")),
   defaultBranch: z.string().default("main"),

@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { generateId } from "@/lib/id";
 import { projects } from "@/db/schema";
 import { errorResponse } from "@/lib/errors";
 import { createProjectSchema } from "@/lib/validators";
@@ -21,17 +22,19 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const parsed = createProjectSchema.parse(body);
+    const id = generateId("PRJ");
 
     const now = new Date().toISOString();
     db.insert(projects)
       .values({
+        id,
         ...parsed,
         createdAt: now,
         updatedAt: now,
       })
       .run();
 
-    const created = db.select().from(projects).where(eq(projects.id, parsed.id)).get();
+    const created = db.select().from(projects).where(eq(projects.id, id)).get();
     return Response.json({ data: created }, { status: 201 });
   } catch (error) {
     return errorResponse(error);
