@@ -13,7 +13,7 @@ export const createProjectSchema = z.object({
 
 export const updateProjectSchema = createProjectSchema
   .partial()
-  .omit({ id: true })
+
   .extend({ roadmap: z.string().optional(), status: z.enum(["setup", "kickoff", "development", "completed"]).optional() });
 
 // ── Tasks ──────────────────────────────────────────────
